@@ -20,6 +20,8 @@ function successCurrent(pos) {
         Vitesse : ${crd.speed} m/s<br>
         Nous sommes le ${timestamp}.
     `;
+
+    afficherCarte(crd.latitude, crd.longitude);
 }
 
 
