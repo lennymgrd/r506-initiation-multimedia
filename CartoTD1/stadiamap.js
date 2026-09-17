@@ -414,7 +414,7 @@ function afficherTrajetOSRM(
 function afficherTrajetMapbox(map) {
 
     var tokenMapbox =
-        'pk.eyJ1IjoiY3YwNiIsImEiOiJjajg2MmpzYjcwbWdnMzNsc2NzM2l4eW0yIn0.TfDJipR5II7orUZaC848YA';
+        'pk.eyJ1IjoibGVubnltZ3JkIiwiYSI6ImNtdTVhdGNtMDBjcWQyenNoajVqM3pxdnMifQ.aslqvtH6rJfEfUWd742_nA';
 
 
     rechercherLieuMapbox(
