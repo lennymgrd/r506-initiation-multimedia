@@ -13,7 +13,6 @@ function afficherCarte(latitude, longitude) {
 
     //marqueur centre ville Nice
     recupererNice(map);
-    
     // tracé du triangle
     afficherTriangleBermudes(map);
 

@@ -21,7 +21,17 @@ function successCurrent(pos) {
         Nous sommes le ${timestamp}.
     `;
 
-    afficherCarte(crd.latitude, crd.longitude);
+afficherCarte(
+    crd.latitude,
+    crd.longitude,
+    crd.accuracy
+);
+
+afficherCarteStadia(
+    crd.latitude,
+    crd.longitude,
+    crd.accuracy
+);
 }
 
 
