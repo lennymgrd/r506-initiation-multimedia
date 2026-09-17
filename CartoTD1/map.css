@@ -1,9 +1,11 @@
 #map {
     height: 400px;
     width: 600px;
+    max-width: 100%;
 }
 
 #mapStadia {
     height: 400px;
     width: 600px;
+    max-width: 100%;
 }
