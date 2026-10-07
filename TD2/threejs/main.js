@@ -30,8 +30,12 @@ const camera = new THREE.PerspectiveCamera(
     1000
 );
 
-camera.position.z = 5;
-
+if (window.innerWidth < 600) {
+    camera.position.z = 7;
+}
+else {
+    camera.position.z = 5;
+}
 
 // Renderer
 const renderer = new THREE.WebGLRenderer();
@@ -209,16 +213,31 @@ window.addEventListener(
         const x = event.beta || 0;
         const y = event.gamma || 0;
 
-        const sensibilite = 2.5;
-
         cubeGroup.rotation.x =
-            THREE.MathUtils.degToRad(x * sensibilite);
+            THREE.MathUtils.degToRad(x);
 
         cubeGroup.rotation.y =
-            THREE.MathUtils.degToRad(y * sensibilite);
+            THREE.MathUtils.degToRad(y);
     }
 );
 
+function resize() {
+
+    camera.aspect =
+        window.innerWidth / window.innerHeight;
+
+    camera.updateProjectionMatrix();
+
+    renderer.setSize(
+        window.innerWidth,
+        window.innerHeight
+    );
+}
+
+window.addEventListener(
+    'resize',
+    resize
+);
 
 // Animation
 function animate() {
