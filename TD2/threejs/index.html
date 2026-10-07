@@ -16,6 +16,32 @@
         canvas {
             display: block;
         }
+
+        #orientation-controls {
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            right: 1rem;
+            z-index: 1;
+            max-width: 22rem;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            background: rgba(255, 255, 255, 0.95);
+            color: #222;
+            font-family: sans-serif;
+        }
+
+        #enable-orientation {
+            min-height: 44px;
+            padding: 0.5rem 1rem;
+            font: inherit;
+            cursor: pointer;
+        }
+
+        #orientation-status {
+            margin: 0.75rem 0 0;
+            line-height: 1.4;
+        }
     </style>
 
     <script type="importmap">
@@ -29,6 +55,11 @@
 </head>
 
 <body>
+
+    <div id="orientation-controls">
+        <button id="enable-orientation" type="button">Activer le contrôle par le téléphone</button>
+        <p id="orientation-status" role="status">Appuie sur le bouton, puis incline ton téléphone pour faire tourner le cube.</p>
+    </div>
 
     <script type="module" src="main.js"></script>
 

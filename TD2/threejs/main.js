@@ -205,21 +205,78 @@ scene.add(particles);
 
 
 // Orientation du smartphone
-window.addEventListener(
-    'deviceorientation',
+const orientationButton = document.getElementById('enable-orientation');
+const orientationStatus = document.getElementById('orientation-status');
+let orientationActive = false;
+let orientationTimeout;
 
-    function (event) {
+function updateOrientation(event) {
 
-        const x = event.beta || 0;
-        const y = event.gamma || 0;
-
-        cubeGroup.rotation.x =
-            THREE.MathUtils.degToRad(x);
-
-        cubeGroup.rotation.y =
-            THREE.MathUtils.degToRad(y);
+    // Certains appareils envoient des valeurs nulles sans capteurs disponibles.
+    if (!Number.isFinite(event.beta) || !Number.isFinite(event.gamma)) {
+        return;
     }
-);
+
+    if (!orientationActive) {
+        orientationActive = true;
+        clearTimeout(orientationTimeout);
+        cube.rotation.set(0, 0, 0);
+        orientationButton.disabled = true;
+        orientationButton.textContent = 'Contrôle activé';
+        orientationStatus.textContent = 'Incline ton téléphone : le cube suit tes mouvements.';
+    }
+
+    cubeGroup.rotation.x = THREE.MathUtils.degToRad(event.beta);
+    cubeGroup.rotation.y = THREE.MathUtils.degToRad(event.gamma);
+}
+
+async function enableOrientation() {
+
+    orientationButton.disabled = true;
+    orientationStatus.textContent = 'Activation des capteurs…';
+    clearTimeout(orientationTimeout);
+    window.removeEventListener('deviceorientation', updateOrientation);
+
+    try {
+        // L'autorisation doit être demandée directement depuis le clic.
+        if (typeof window.DeviceOrientationEvent.requestPermission === 'function') {
+            const permission = await window.DeviceOrientationEvent.requestPermission();
+
+            if (permission !== 'granted') {
+                orientationStatus.textContent = 'Accès refusé. Autorise les mouvements et l’orientation pour ce site dans les réglages du navigateur, puis réessaie.';
+                orientationButton.disabled = false;
+                return;
+            }
+        }
+
+        orientationStatus.textContent = 'En attente des capteurs… Incline ton téléphone.';
+        window.addEventListener('deviceorientation', updateOrientation);
+
+        orientationTimeout = setTimeout(function () {
+            if (!orientationActive) {
+                orientationStatus.textContent = 'Aucune donnée reçue. Vérifie que ton appareil possède les capteurs nécessaires et que leur accès est autorisé dans le navigateur, puis réessaie.';
+                orientationButton.disabled = false;
+            }
+        }, 5000);
+    }
+    catch (error) {
+        orientationStatus.textContent = 'Impossible d’activer les capteurs. Vérifie les autorisations du navigateur, puis réessaie.';
+        orientationButton.disabled = false;
+        console.error('Activation de l’orientation impossible :', error);
+    }
+}
+
+if (!window.isSecureContext) {
+    orientationButton.disabled = true;
+    orientationStatus.textContent = 'Ouvre cette page en HTTPS pour utiliser les capteurs du téléphone.';
+}
+else if (typeof window.DeviceOrientationEvent === 'undefined') {
+    orientationButton.disabled = true;
+    orientationStatus.textContent = 'Ce navigateur ne propose pas le contrôle par orientation.';
+}
+else {
+    orientationButton.addEventListener('click', enableOrientation);
+}
 
 function resize() {
 
@@ -245,9 +302,11 @@ function animate() {
     const delta = clock.getDelta();
 
 
-    // Rotation du cube
-    cube.rotation.x += 0.01;
-    cube.rotation.y += 0.01;
+    // Rotation automatique tant que le téléphone ne contrôle pas le cube.
+    if (!orientationActive) {
+        cube.rotation.x += 0.01;
+        cube.rotation.y += 0.01;
+    }
 
 
     // Animation du flamant
