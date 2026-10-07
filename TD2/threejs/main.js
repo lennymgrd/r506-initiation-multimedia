@@ -209,11 +209,13 @@ window.addEventListener(
         const x = event.beta || 0;
         const y = event.gamma || 0;
 
+        const sensibilite = 2.5;
+
         cubeGroup.rotation.x =
-            THREE.MathUtils.degToRad(x);
+            THREE.MathUtils.degToRad(x * sensibilite);
 
         cubeGroup.rotation.y =
-            THREE.MathUtils.degToRad(y);
+            THREE.MathUtils.degToRad(y * sensibilite);
     }
 );
 
