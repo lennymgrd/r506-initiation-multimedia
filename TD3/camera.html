@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TD3 - Objets géolocalisés dans la caméra</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <style>
+        body { margin: 0; overflow: hidden; background: #222; font-family: sans-serif; }
+        #video, #scene3d { position: fixed; inset: 0; width: 100%; height: 100%; }
+        #video { object-fit: cover; }
+        #scene3d { pointer-events: none; }
+        canvas { display: block; }
+        #controls {
+            position: fixed; top: 10px; left: 10px; right: 10px; z-index: 1000;
+            padding: 10px; background: rgba(255, 255, 255, 0.9);
+            max-height: 45vh; overflow: auto;
+        }
+        h1 { font-size: 1.1rem; margin: 8px 0; }
+        p { margin: 6px 0; }
+        button { padding: 8px; margin: 4px 0; font: inherit; }
+        #map { position: fixed; left: 10px; bottom: 10px; width: 270px; height: 25vh; }
+    </style>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js"
+        }
+    }
+    </script>
+</head>
+<body>
+    <video id="video" autoplay muted playsinline></video>
+    <div id="scene3d"></div>
+    <section id="controls">
+        <a href="index.html">Retour à l’exercice 1</a>
+        <h1>Exercice 2 - Objets géolocalisés dans la caméra</h1>
+        <button id="start" type="button">Démarrer la caméra et les capteurs</button>
+        <button id="calibrate" type="button" disabled>Je vise le nord : calibrer</button>
+        <p id="camera-status" role="status">Sur smartphone, ouvre la page en HTTPS et autorise la caméra, la position et l’orientation.</p>
+        <p id="geo-status" role="status">Position en attente.</p>
+        <p id="orientation-status" role="status">Orientation en attente.</p>
+        <p>Repères à 50 m du départ : nord rouge, est vert, sud bleu, ouest orange.</p>
+        <p>Clique sur la petite carte pour ajouter un cube jaune à cet endroit (à moins de 1 km).</p>
+    </section>
+    <div id="map" aria-label="Carte des objets géolocalisés"></div>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script type="module" src="camera.js"></script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TD3 - Terre et Leaflet</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <style>
+        body { margin: 0; font-family: sans-serif; }
+        header { padding: 10px; }
+        h1 { margin: 0 0 8px; font-size: 1.2rem; }
+        p { margin: 6px 0; }
+        #views { display: flex; height: 75vh; }
+        #scene3d, #map { width: 50%; height: 100%; }
+        canvas { display: block; }
+        #scene3d canvas { cursor: grab; touch-action: none; }
+        #scene3d canvas:active { cursor: grabbing; }
+        @media (max-width: 800px) {
+            #views { flex-direction: column; height: 100vh; }
+            #scene3d, #map { width: 100%; height: 50%; }
+        }
+    </style>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js"
+        }
+    }
+    </script>
+</head>
+<body>
+    <header>
+        <h1>Exercice 1 - Géolocalisation et Terre en 3D</h1>
+        <a href="camera.html">Exercice 2 : objets géolocalisés dans la caméra</a>
+        <p>Fais glisser la souris ou ton doigt sur la Terre pour la tourner. Clique sur un cube avec un drapeau pour centrer la carte.</p>
+        <p>Clique sur la carte ou un marqueur pour orienter la Terre vers cet endroit.</p>
+        <p id="geo-status" role="status">Recherche de ma position…</p>
+        <p id="countries-status" role="status">Chargement des pays…</p>
+    </header>
+    <main id="views">
+        <div id="scene3d" aria-label="Globe terrestre en 3D"></div>
+        <div id="map" aria-label="Carte du monde"></div>
+    </main>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script type="module" src="main.js"></script>
+</body>
+</html>

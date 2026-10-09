@@ -1,0 +1,62 @@
+[
+    {
+        "name": {
+            "common": "Australia"
+        },
+        "latlng": [
+            -27,
+            133
+        ],
+        "flags": {
+            "png": "https://flagcdn.com/w160/au.png"
+        }
+    },
+    {
+        "name": {
+            "common": "Brazil"
+        },
+        "latlng": [
+            -10,
+            -55
+        ],
+        "flags": {
+            "png": "https://flagcdn.com/w160/br.png"
+        }
+    },
+    {
+        "name": {
+            "common": "Canada"
+        },
+        "latlng": [
+            60,
+            -95
+        ],
+        "flags": {
+            "png": "https://flagcdn.com/w160/ca.png"
+        }
+    },
+    {
+        "name": {
+            "common": "France"
+        },
+        "latlng": [
+            46,
+            2
+        ],
+        "flags": {
+            "png": "https://flagcdn.com/w160/fr.png"
+        }
+    },
+    {
+        "name": {
+            "common": "Japan"
+        },
+        "latlng": [
+            36,
+            138
+        ],
+        "flags": {
+            "png": "https://flagcdn.com/w160/jp.png"
+        }
+    }
+]
