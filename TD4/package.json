@@ -1,0 +1,25 @@
+{
+  "name": "flight-explorer-3d",
+  "version": "1.0.0",
+  "description": "Flight Explorer 3D — suivi d'avions réels (ADSB.fi) sur un globe 3D CesiumJS",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "copy-cesium": "node scripts/copy-cesium-assets.mjs",
+    "predev": "npm run copy-cesium",
+    "dev": "vite",
+    "prebuild": "npm run copy-cesium",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "generate-model": "node scripts/generate-airplane-model.mjs"
+  },
+  "dependencies": {
+    "cesium": "^1.146.0"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.64.1",
+    "vite": "^8.3.5",
+    "vitest": "^4.1.1"
+  }
+}

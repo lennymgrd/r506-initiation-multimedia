@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta
+      name="description"
+      content="Flight Explorer 3D — Visualisation d'avions en temps réel (ADSB.fi) sur une Terre en 3D réaliste (CesiumJS)."
+    />
+    <meta name="theme-color" content="#070d19" />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2322d3ee'%3E%3Cpath d='M12 2c.8 0 1.3.8 1.3 1.8V9l8.2 4.8v2l-8.2-2.4v5.2l2.3 1.7V22L12 21l-3.6 1v-1.7l2.3-1.7v-5.2l-8.2 2.4v-2L10.7 9V3.8C10.7 2.8 11.2 2 12 2z'/%3E%3C/svg%3E"
+    />
+    <title>Flight Explorer 3D — Suivi aérien en temps réel</title>
+  </head>
+  <body>
+    <div id="app" class="app-shell">
+      <!-- ZONE 1 : BARRE SUPÉRIEURE -->
+      <header class="topbar" role="banner">
+        <div class="topbar-left">
+          <button
+            id="btn-toggle-menu"
+            type="button"
+            class="icon-btn"
+            aria-label="Afficher ou masquer la liste des vols"
+            aria-controls="flights-sidebar"
+            aria-expanded="true"
+            title="Afficher / masquer le panneau des vols"
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h13v2H3v-2z"
+              />
+            </svg>
+            <span class="btn-label-mobile">Vols</span>
+          </button>
+
+          <div class="brand">
+            <span class="brand-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22">
+                <path
+                  fill="currentColor"
+                  d="M12 2c.8 0 1.3.8 1.3 1.8V9l8.2 4.8v2l-8.2-2.4v5.2l2.3 1.7V22L12 21l-3.6 1v-1.7l2.3-1.7v-5.2l-8.2 2.4v-2L10.7 9V3.8C10.7 2.8 11.2 2 12 2z"
+                />
+              </svg>
+            </span>
+            <h1 class="brand-title">Flight Explorer <span class="brand-accent">3D</span></h1>
+          </div>
+        </div>
+
+        <div class="topbar-center">
+          <div id="connection-status-pill" class="status-pill" data-status="idle" role="status" aria-live="polite">
+            <span id="connection-status-dot" class="status-dot"></span>
+            <span id="connection-status-text">Connexion…</span>
+          </div>
+
+          <div class="telemetry-stats">
+            <div class="stat-chip" title="Nombre d'avions chargés dans la scène">
+              <span class="stat-label">Chargés :</span>
+              <strong id="topbar-aircraft-count">0 avion</strong>
+            </div>
+            <div class="stat-chip stat-chip-time" title="Heure de dernière actualisation des positions">
+              <span class="stat-label">MAJ :</span>
+              <time id="topbar-last-update">En attente…</time>
+            </div>
+          </div>
+        </div>
+
+        <div class="topbar-right">
+          <button
+            id="btn-quick-demo"
+            type="button"
+            class="pill-btn"
+            aria-pressed="false"
+            title="Basculer entre les données réelles ADSB.fi et le jeu de démonstration fictif"
+          >
+            Mode démo
+          </button>
+
+          <button
+            id="btn-refresh-now"
+            type="button"
+            class="icon-btn"
+            aria-label="Rafraîchir manuellement les vols"
+            title="Rafraîchir maintenant"
+          >
+            <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A5.99 5.99 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"
+              />
+            </svg>
+            <span class="btn-text-desktop">Actualiser</span>
+          </button>
+
+          <button
+            id="btn-open-settings"
+            type="button"
+            class="icon-btn"
+            aria-label="Ouvrir les paramètres"
+            title="Paramètres d'affichage et d'unités"
+          >
+            <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.04 7.04 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.01-1.58zM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2z"
+              />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- CORPS PRINCIPAL (ZONES 2 & 3) -->
+      <div class="workspace">
+        <div id="sidebar-backdrop" class="sidebar-backdrop" hidden></div>
+
+        <!-- ZONE 2 : MENU LATÉRAL GAUCHE -->
+        <aside
+          id="flights-sidebar"
+          class="sidebar is-open"
+          aria-label="Vols dans la zone"
+        >
+          <div class="sidebar-header">
+            <div class="sidebar-title-row">
+              <h2 class="sidebar-title">Vols dans la zone</h2>
+              <div class="sidebar-header-right">
+                <span
+                  id="sidebar-loading"
+                  class="spinner-badge"
+                  title="Chargement des données aériennes…"
+                  hidden
+                ></span>
+                <span id="sidebar-flight-count" class="count-badge">0 / 0</span>
+                <button
+                  id="sidebar-close-btn"
+                  type="button"
+                  class="icon-btn sidebar-close-mobile"
+                  aria-label="Fermer la liste des vols"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <!-- Recherche locale + Recherche distante par indicatif -->
+            <div class="search-box">
+              <div class="search-input-wrap">
+                <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"
+                  />
+                </svg>
+                <input
+                  id="flight-search-input"
+                  type="search"
+                  placeholder="Filtrer (indicatif, hex, immat., pays)…"
+                  autocomplete="off"
+                  aria-label="Filtrer localement les vols ou saisir un indicatif"
+                />
+                <button
+                  id="flight-search-clear"
+                  type="button"
+                  class="clear-input-btn"
+                  aria-label="Effacer la recherche"
+                  hidden
+                >
+                  ✕
+                </button>
+              </div>
+              <button
+                id="remote-callsign-btn"
+                type="button"
+                class="remote-search-btn"
+                disabled
+                title="Rechercher cet indicatif sur toute l'API ADSB.fi (/v2/callsign)"
+              >
+                API Indicatif
+              </button>
+            </div>
+
+            <div id="remote-search-banner" class="remote-banner" hidden>
+              <span id="remote-search-text">Recherche distante active</span>
+              <button id="remote-search-reset" type="button" class="link-btn">
+                Retour à la zone
+              </button>
+            </div>
+
+            <!-- Filtre par indicatif, tri et filtre au sol -->
+            <div class="filters-grid">
+              <label class="filter-field">
+                <span class="sr-only">Filtrer par préfixe d'indicatif</span>
+                <select id="callsign-prefix-select" aria-label="Filtrer par préfixe d'indicatif">
+                  <option value="">Tous les indicatifs</option>
+                </select>
+              </label>
+
+              <label class="filter-field">
+                <span class="sr-only">Trier par</span>
+                <select id="flight-sort-select" aria-label="Trier les avions">
+                  <option value="callsign">Tri : Indicatif (A–Z)</option>
+                  <option value="altitude">Tri : Altitude ↓</option>
+                  <option value="speed">Tri : Vitesse ↓</option>
+                </select>
+              </label>
+            </div>
+
+            <label class="ground-toggle">
+              <input id="filter-ground-checkbox" type="checkbox" checked />
+              <span>Inclure les avions au sol</span>
+            </label>
+          </div>
+
+          <ul id="flight-list-items" class="flight-list" aria-live="polite"></ul>
+
+          <div id="flight-list-empty" class="empty-state" hidden>
+            <p id="flight-empty-title" class="empty-title">Aucun avion détecté</p>
+            <p id="flight-empty-subtitle" class="empty-subtitle">
+              Déplacez le globe ou actualisez la zone consultée.
+            </p>
+          </div>
+        </aside>
+
+        <!-- ZONE 3 : ESPACE PRINCIPAL (GLOBE 3D + CONTRÔLES + FICHE AVION) -->
+        <main class="stage" aria-label="Globe terrestre 3D">
+          <div id="cesium-container" class="cesium-stage"></div>
+
+          <!-- Écran de secours si WebGL est indisponible -->
+          <div id="webgl-error-screen" class="webgl-fallback" hidden role="alert">
+            <div class="webgl-card">
+              <h2>WebGL est indisponible</h2>
+              <p>
+                Votre navigateur ou votre appareil ne permet pas d’initialiser un contexte 3D WebGL
+                requis par CesiumJS. Vérifiez que l’accélération matérielle est activée.
+              </p>
+            </div>
+          </div>
+
+          <!-- Bandeaux d'alerte (API aérienne / Globe 3D) -->
+          <div class="alerts-stack">
+            <div id="api-alert-banner" class="alert-banner is-warning" role="alert" hidden>
+              <span id="api-alert-message"></span>
+              <div class="alert-actions">
+                <button id="api-alert-action" type="button" class="alert-cta">
+                  Activer le mode démo
+                </button>
+                <button id="api-alert-close" type="button" class="alert-dismiss" aria-label="Fermer">
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <div id="globe-alert-banner" class="alert-banner is-info" role="status" hidden>
+              <span id="globe-alert-message"></span>
+              <button id="globe-alert-close" type="button" class="alert-dismiss" aria-label="Fermer">
+                ✕
+              </button>
+            </div>
+          </div>
+
+          <!-- Barre d'outils flottante sur le globe (recherche de lieu + vue mondiale + GPS) -->
+          <div class="map-toolbar">
+            <form id="place-search-form" class="place-search" autocomplete="off">
+              <input
+                id="place-search-input"
+                type="search"
+                placeholder="Rechercher un lieu…"
+                aria-label="Rechercher un lieu via le géocodeur Cesium"
+              />
+              <button id="place-search-submit" type="submit" aria-label="Lancer la recherche de lieu">
+                Aller
+              </button>
+              <ul id="place-search-results" class="place-results" hidden></ul>
+            </form>
+
+            <div class="map-quick-buttons">
+              <button
+                id="btn-world-view"
+                type="button"
+                class="map-tool-btn"
+                title="Revenir à la vue mondiale"
+              >
+                🌍 <span class="tool-label">Vue mondiale</span>
+              </button>
+              <button
+                id="btn-geolocate"
+                type="button"
+                class="map-tool-btn"
+                title="Centrer sur ma position GPS (permission facultative)"
+              >
+                📍 <span class="tool-label">Ma position</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Fiche détaillée de l'avion sélectionné + modes de caméra -->
+          <section
+            id="flight-details-card"
+            class="details-card"
+            aria-label="Détails de l'avion sélectionné"
+            hidden
+          >
+            <div class="details-header">
+              <div>
+                <div class="details-title-row">
+                  <h2 id="detail-callsign" class="details-callsign">—</h2>
+                  <span id="detail-demo-badge" class="demo-tag" hidden>DÉMO FICTIVE</span>
+                </div>
+                <p id="detail-subtitle" class="details-subtitle">—</p>
+              </div>
+              <button
+                id="btn-collapse-details"
+                type="button"
+                class="collapse-mobile-btn"
+                aria-expanded="true"
+              >
+                Réduire ▼
+              </button>
+            </div>
+
+            <!-- Message si l'avion sélectionné a disparu temporairement -->
+            <div id="detail-missing-banner" class="missing-banner" hidden>
+              ⚠️ Signal perdu temporairement — dernière position reçue
+              <strong id="detail-missing-age">il y a quelques secondes</strong>.
+            </div>
+
+            <!-- Sélecteur des 3 modes de caméra -->
+            <div class="camera-modes" role="group" aria-label="Modes de caméra">
+              <button
+                type="button"
+                class="cam-btn"
+                data-camera-mode="global"
+                aria-pressed="false"
+                title="Navigation libre autour du globe"
+              >
+                🌐 Vue globale
+              </button>
+              <button
+                type="button"
+                class="cam-btn is-active"
+                data-camera-mode="chase"
+                aria-pressed="true"
+                title="Caméra extérieure derrière et au-dessus de l'avion"
+              >
+                ✈️ Vue extérieure
+              </button>
+              <button
+                type="button"
+                class="cam-btn"
+                data-camera-mode="cockpit"
+                aria-pressed="false"
+                title="Caméra virtuelle placée à l'avant du modèle"
+              >
+                🎛️ Cockpit virtuel
+              </button>
+            </div>
+
+            <p id="detail-cockpit-notice" class="cockpit-notice" hidden>
+              ℹ️ <strong>Vue simulée :</strong> reconstituée en 3D à partir de la position, de
+              l’altitude et du cap ADS-B. Il ne s’agit pas d’une caméra réelle à bord.
+            </p>
+
+            <!-- Option capteur d'orientation smartphone (vue cockpit) -->
+            <div id="detail-orientation-bar" class="orientation-bar" hidden>
+              <button
+                id="btn-toggle-orientation"
+                type="button"
+                class="secondary-btn"
+                aria-pressed="false"
+              >
+                Orientation smartphone
+              </button>
+              <span id="orientation-status-msg" class="orientation-msg">
+                Glissez sur l’écran ou activez le gyroscope pour regarder autour de vous.
+              </span>
+            </div>
+
+            <!-- Grille de télémétrie -->
+            <div class="details-body">
+              <dl class="telemetry-grid">
+                <div class="telemetry-cell">
+                  <dt>Altitude baro.</dt>
+                  <dd id="detail-altitude">—</dd>
+                </div>
+                <div class="telemetry-cell">
+                  <dt>Altitude géom.</dt>
+                  <dd id="detail-alt-geom">—</dd>
+                </div>
+                <div class="telemetry-cell">
+                  <dt>Vitesse sol</dt>
+                  <dd id="detail-speed">—</dd>
+                </div>
+                <div class="telemetry-cell">
+                  <dt>Direction (cap)</dt>
+                  <dd id="detail-track">—</dd>
+                </div>
+                <div class="telemetry-cell">
+                  <dt>Taux vertical</dt>
+                  <dd id="detail-vrate">—</dd>
+                </div>
+                <div class="telemetry-cell">
+                  <dt>Pays (OACI)</dt>
+                  <dd id="detail-country">—</dd>
+                </div>
+                <div class="telemetry-cell">
+                  <dt>Immatriculation</dt>
+                  <dd id="detail-registration">—</dd>
+                </div>
+                <div class="telemetry-cell">
+                  <dt>Type appareil</dt>
+                  <dd id="detail-type">—</dd>
+                </div>
+                <div class="telemetry-cell">
+                  <dt>Code OACI (hex)</dt>
+                  <dd id="detail-hex">—</dd>
+                </div>
+                <div class="telemetry-cell">
+                  <dt>Transpondeur</dt>
+                  <dd id="detail-squawk">—</dd>
+                </div>
+                <div class="telemetry-cell is-wide">
+                  <dt>Coordonnées GPS</dt>
+                  <dd id="detail-coords">—</dd>
+                </div>
+                <div class="telemetry-cell is-wide">
+                  <dt>Dernière position reçue</dt>
+                  <dd id="detail-last-pos">—</dd>
+                </div>
+              </dl>
+
+              <p class="route-disclaimer">
+                Les aéroports de départ et d’arrivée ne sont pas diffusés dans les trames ADS-B
+                temps réel d’ADSB.fi.
+              </p>
+            </div>
+
+            <div class="details-footer">
+              <button
+                id="btn-reset-view-offset"
+                type="button"
+                class="secondary-btn"
+                title="Réinitialiser l'angle de la caméra sur l'avion"
+              >
+                Recentrer la vue
+              </button>
+              <button id="btn-stop-tracking" type="button" class="danger-btn">
+                Arrêter le suivi
+              </button>
+            </div>
+          </section>
+
+          <!-- Barre inférieure : coordonnées, état 3D et attribution ADSB.fi obligatoire -->
+          <footer class="statusbar">
+            <div class="statusbar-left">
+              <span id="status-coordinates" class="status-item">46.6000° N, 2.3500° E</span>
+              <span id="status-area-radius" class="status-item">Zone : rayon 250 NM</span>
+              <span id="status-quality-badge" class="status-badge">Globe léger</span>
+              <span id="tiles-loading-badge" class="status-badge is-loading" hidden>
+                Tuiles 3D…
+              </span>
+            </div>
+            <div class="statusbar-right">
+              <span>
+                Données aériennes :
+                <a
+                  href="https://adsb.fi/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="attribution-link"
+                >
+                  adsb.fi
+                </a>
+                (usage personnel non commercial)
+              </span>
+            </div>
+          </footer>
+        </main>
+      </div>
+
+      <!-- FENÊTRE DES PARAMÈTRES -->
+      <div id="settings-modal" class="modal-layer" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
+        <div id="settings-backdrop" class="modal-backdrop"></div>
+        <div class="modal-dialog">
+          <div class="modal-header">
+            <h2 id="settings-title">Paramètres</h2>
+            <button id="btn-close-settings" type="button" class="icon-btn" aria-label="Fermer">
+              ✕
+            </button>
+          </div>
+
+          <div class="modal-body">
+            <fieldset class="pref-group">
+              <legend>Qualité graphique du globe 3D</legend>
+              <label class="radio-card">
+                <input type="radio" name="pref-quality" value="high" />
+                <div>
+                  <strong>Qualité élevée — Google Photorealistic 3D Tiles</strong>
+                  <small>Relief et bâtiments 3D photoréalistes via Cesium ion (repli automatique si indisponible).</small>
+                </div>
+              </label>
+              <label class="radio-card">
+                <input type="radio" name="pref-quality" value="low" />
+                <div>
+                  <strong>Qualité légère — Globe classique</strong>
+                  <small>Moins gourmand en mémoire et batterie, idéal sur smartphone.</small>
+                </div>
+              </label>
+            </fieldset>
+
+            <div class="pref-row">
+              <fieldset class="pref-group">
+                <legend>Unité d'altitude</legend>
+                <label class="radio-inline">
+                  <input type="radio" name="pref-alt-unit" value="m" /> Mètres (m)
+                </label>
+                <label class="radio-inline">
+                  <input type="radio" name="pref-alt-unit" value="ft" /> Pieds (ft)
+                </label>
+              </fieldset>
+
+              <fieldset class="pref-group">
+                <legend>Unité de vitesse</legend>
+                <label class="radio-inline">
+                  <input type="radio" name="pref-speed-unit" value="kmh" /> km/h
+                </label>
+                <label class="radio-inline">
+                  <input type="radio" name="pref-speed-unit" value="kt" /> Nœuds (kt)
+                </label>
+              </fieldset>
+            </div>
+
+            <div class="pref-group">
+              <label for="pref-refresh-interval" class="pref-label">
+                Intervalle d'actualisation automatique
+              </label>
+              <select id="pref-refresh-interval" class="pref-select">
+                <option value="15">Toutes les 15 secondes</option>
+                <option value="30">Toutes les 30 secondes (recommandé)</option>
+                <option value="60">Toutes les 60 secondes</option>
+                <option value="120">Toutes les 2 minutes</option>
+              </select>
+            </div>
+
+            <div class="pref-group">
+              <label class="checkbox-row">
+                <input id="pref-show-ground" type="checkbox" />
+                <span>Afficher les avions au sol</span>
+              </label>
+              <label class="checkbox-row">
+                <input id="pref-show-labels" type="checkbox" />
+                <span>Afficher les indicatifs au-dessus des avions sur le globe</span>
+              </label>
+              <label class="checkbox-row">
+                <input id="pref-demo-mode" type="checkbox" />
+                <span>
+                  <strong>Mode démo</strong> — Utiliser les données locales fictives (tests / hors-ligne)
+                </span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
+
