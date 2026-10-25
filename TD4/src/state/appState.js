@@ -5,29 +5,31 @@
  * avion sélectionné, mode de caméra, préférences, statut des données, etc.
  * Un module modifie l'état avec `setState()` ; les autres réagissent via `subscribe()`.
  */
-import { DEFAULT_PREFERENCES, SETTINGS } from '../config/settings.js';
+import { DEFAULT_PREFERENCES, MOBILE_RENDER_PROFILES, SETTINGS } from '../config/settings.js';
 
 /** Charge les préférences sauvegardées (en ignorant les valeurs inconnues). */
-export function loadPreferences(storage = globalThis.localStorage, { lowPower = false } = {}) {
+export function loadPreferences(storage = globalThis.localStorage, { lowPower = false, mobile = false } = {}) {
+  const defaults = {
+    ...DEFAULT_PREFERENCES,
+    ...((mobile || lowPower) ? { showLabels: false } : {}),
+    ...(mobile && lowPower ? { mobileRendering: 'economy' } : {}),
+  };
   try {
     const saved = JSON.parse(storage?.getItem(SETTINGS.storageKey) ?? '{}');
     // Sur smartphone, on désactive les étiquettes de texte par défaut pour fluidifier le rendu WebGL.
-    const prefs = {
-      ...DEFAULT_PREFERENCES,
-      ...(lowPower ? { showLabels: false } : {}),
-    };
+    const prefs = { ...defaults };
     for (const key of Object.keys(DEFAULT_PREFERENCES)) {
       if (typeof saved[key] === typeof DEFAULT_PREFERENCES[key]) prefs[key] = saved[key];
     }
     if (!SETTINGS.refresh.allowedIntervalsS.includes(prefs.refreshIntervalS)) {
       prefs.refreshIntervalS = SETTINGS.refresh.defaultIntervalS;
     }
+    if (!Object.hasOwn(MOBILE_RENDER_PROFILES, prefs.mobileRendering)) {
+      prefs.mobileRendering = defaults.mobileRendering;
+    }
     return prefs;
   } catch {
-    return {
-      ...DEFAULT_PREFERENCES,
-      ...(lowPower ? { showLabels: false } : {}),
-    };
+    return defaults;
   }
 }
 

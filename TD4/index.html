@@ -319,10 +319,16 @@
                 type="button"
                 class="collapse-mobile-btn"
                 aria-expanded="true"
+                aria-controls="flight-details-body"
               >
                 Réduire ▼
               </button>
             </div>
+
+            <dl class="compact-telemetry">
+              <div><dt>Altitude</dt><dd id="detail-compact-altitude">—</dd></div>
+              <div><dt>Vitesse</dt><dd id="detail-compact-speed">—</dd></div>
+            </dl>
 
             <!-- Message si l'avion sélectionné a disparu temporairement -->
             <div id="detail-missing-banner" class="missing-banner" hidden>
@@ -339,7 +345,7 @@
                 aria-pressed="false"
                 title="Navigation libre autour du globe"
               >
-                🌐 Vue globale
+                <span class="camera-label-desktop">🌐 Vue globale</span><span class="camera-label-mobile">Globale</span>
               </button>
               <button
                 type="button"
@@ -348,7 +354,7 @@
                 aria-pressed="true"
                 title="Caméra extérieure derrière et au-dessus de l'avion"
               >
-                ✈️ Vue extérieure
+                <span class="camera-label-desktop">✈️ Vue extérieure</span><span class="camera-label-mobile">Extérieure</span>
               </button>
               <button
                 type="button"
@@ -357,7 +363,7 @@
                 aria-pressed="false"
                 title="Caméra virtuelle placée à l'avant du modèle"
               >
-                🎛️ Cockpit virtuel
+                <span class="camera-label-desktop">🎛️ Cockpit virtuel</span><span class="camera-label-mobile">Cockpit simulé</span>
               </button>
             </div>
 
@@ -382,7 +388,7 @@
             </div>
 
             <!-- Grille de télémétrie -->
-            <div class="details-body">
+            <div id="flight-details-body" class="details-body">
               <dl class="telemetry-grid">
                 <div class="telemetry-cell">
                   <dt>Altitude baro.</dt>
@@ -467,7 +473,7 @@
             </div>
             <div class="statusbar-right">
               <span>
-                Données aériennes :
+                <span class="attribution-prefix">Données aériennes :</span>
                 <a
                   href="https://adsb.fi/"
                   target="_blank"
@@ -476,7 +482,7 @@
                 >
                   adsb.fi
                 </a>
-                (usage personnel non commercial)
+                <span class="attribution-terms">(usage personnel non commercial)</span>
               </span>
             </div>
           </footer>
@@ -512,6 +518,15 @@
                 </div>
               </label>
             </fieldset>
+
+            <div id="mobile-rendering-options" class="pref-group" hidden>
+              <label for="pref-mobile-rendering" class="pref-label">Rendu mobile</label>
+              <select id="pref-mobile-rendering" class="pref-select">
+                <option value="economy">Mobile économique</option>
+                <option value="balanced">Mobile équilibré (recommandé)</option>
+                <option value="high">Qualité élevée</option>
+              </select>
+            </div>
 
             <div class="pref-row">
               <fieldset class="pref-group">

@@ -11,6 +11,15 @@ function env(name, fallback = '') {
   return typeof value === 'string' && value.trim() !== '' ? value.trim() : fallback;
 }
 
+// Même seuil que les styles du tiroir et de la fiche, y compris les téléphones en paysage.
+export const MOBILE_LAYOUT_QUERY = '(max-width: 820px), (max-width: 1024px) and (max-height: 520px) and (pointer: coarse)';
+
+export const MOBILE_RENDER_PROFILES = {
+  economy: { pixelRatio: 1, screenSpaceError: 28, cacheMb: 128, overflowMb: 32 },
+  balanced: { pixelRatio: 1.5, screenSpaceError: 22, cacheMb: 256, overflowMb: 64 },
+  high: { pixelRatio: 2, screenSpaceError: 20, cacheMb: 256, overflowMb: 64 },
+};
+
 export const SETTINGS = {
   appName: 'Flight Explorer 3D',
 
@@ -75,6 +84,8 @@ export const SETTINGS = {
     initialView: { lon: 2.35, lat: 46.6, height: 2_200_000 },
     selectFlyHeightM: 25_000,
     chase: { rangeM: 140, pitchDeg: -12, minRangeM: 40, maxRangeM: 3000 },
+    /** Part du petit côté occupée par le modèle en suivi mobile. */
+    mobileModelFraction: 0.6,
     cockpit: { forwardOffsetM: 18, upOffsetM: 2.5 },
     /** Lissage de la caméra (0 = immobile, 1 = aucune inertie). */
     smoothing: 0.18,
@@ -85,6 +96,8 @@ export const SETTINGS = {
     minimumPixelSize: 48,
     /** Le modèle généré mesure environ 38 m d'envergure (échelle réelle). */
     scale: 1,
+    /** Rayon de secours avant que la sphère englobante du modèle soit disponible. */
+    radiusM: 20,
   },
 
   storageKey: 'flight-explorer-3d:preferences',
@@ -93,6 +106,7 @@ export const SETTINGS = {
 /** Préférences utilisateur par défaut (sauvegardées dans localStorage). */
 export const DEFAULT_PREFERENCES = {
   quality: 'high', // 'high' = Google Photorealistic 3D Tiles, 'low' = globe classique
+  mobileRendering: 'balanced',
   altitudeUnit: 'm', // 'm' | 'ft'
   speedUnit: 'kmh', // 'kmh' | 'kt'
   refreshIntervalS: SETTINGS.refresh.defaultIntervalS,

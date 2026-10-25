@@ -27,7 +27,7 @@ import {
   Viewer,
 } from 'cesium';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
-import { SETTINGS } from '../config/settings.js';
+import { MOBILE_LAYOUT_QUERY, MOBILE_RENDER_PROFILES, SETTINGS } from '../config/settings.js';
 
 /** Vérifie que le navigateur peut créer un contexte WebGL. */
 export function isWebGLAvailable() {
@@ -39,20 +39,23 @@ export function isWebGLAvailable() {
   }
 }
 
-/** Heuristique simple pour détecter un terminal mobile / peu puissant. */
+/** Le tactile détermine les budgets mobiles, pas la puissance de l'appareil. */
+export function isMobileDevice() {
+  return window.matchMedia('(pointer: coarse)').matches || window.matchMedia(MOBILE_LAYOUT_QUERY).matches;
+}
+
+/** Safari n'expose pas deviceMemory : une valeur absente n'est pas un signal de faiblesse. */
 export function isLowPowerDevice() {
-  const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
-  const memory = navigator.deviceMemory ?? 8;
-  const cores = navigator.hardwareConcurrency ?? 8;
-  return coarse || memory <= 4 || cores <= 4;
+  return (navigator.deviceMemory !== undefined && navigator.deviceMemory <= 4)
+    || (navigator.hardwareConcurrency !== undefined && navigator.hardwareConcurrency <= 4);
 }
 
 /**
  * Crée le globe.
  * @param {HTMLElement} container
- * @param {{ token: string, lowPower: boolean, onStatus: (status: object) => void, onTilesLoading: (pending: number) => void }} options
+ * @param {{ token: string, lowPower: boolean, mobile?: boolean, mobileRendering?: string, onStatus: (status: object) => void, onTilesLoading: (pending: number, refining?: boolean) => void }} options
  */
-export function createGlobe(container, { token, lowPower, onStatus, onTilesLoading }) {
+export function createGlobe(container, { token, lowPower, mobile = false, mobileRendering = 'balanced', onStatus, onTilesLoading }) {
   if (token) Ion.defaultAccessToken = token;
 
   const viewer = new Viewer(container, {
@@ -68,7 +71,7 @@ export function createGlobe(container, { token, lowPower, onStatus, onTilesLoadi
     infoBox: false,
     selectionIndicator: false,
     shadows: false,
-    msaaSamples: lowPower ? 1 : 4,
+    msaaSamples: mobile || lowPower ? 1 : 4,
     useBrowserRecommendedResolution: true,
   });
 
@@ -83,12 +86,15 @@ export function createGlobe(container, { token, lowPower, onStatus, onTilesLoadi
   }
   // Éclairage "frontal" depuis la caméra : le modèle 3D reste lisible même la nuit.
   scene.light = new DirectionalLight({ direction: Cartesian3.clone(scene.camera.directionWC) });
-  if (lowPower) {
+  if (mobile || lowPower) {
     viewer.targetFrameRate = 30;
-    viewer.resolutionScale = Math.min(1, 1.35 / (window.devicePixelRatio || 1));
+    if (!mobile) viewer.resolutionScale = Math.min(1, 1.35 / (window.devicePixelRatio || 1));
   }
 
-  const onWindowResize = () => viewer.resize();
+  const onWindowResize = () => {
+    if (mobile) applyMobileRendering();
+    viewer.resize();
+  };
   window.addEventListener('resize', onWindowResize, { passive: true });
 
   let tileset = null;
@@ -96,6 +102,32 @@ export function createGlobe(container, { token, lowPower, onStatus, onTilesLoadi
   let quality = null;
   let imagerySource = null;
   let geocoder = null;
+  let pendingTiles = 0;
+  let previousTileStatus = '';
+
+  function applyMobileRendering() {
+    const profile = MOBILE_RENDER_PROFILES[mobileRendering] ?? MOBILE_RENDER_PROFILES.balanced;
+    // Cesium 1.146 : avec useBrowserRecommendedResolution=true, la densité vaut
+    // exactement resolutionScale. Ne pas diviser une seconde fois par le DPR.
+    viewer.resolutionScale = Math.min(window.devicePixelRatio || 1, profile.pixelRatio);
+    if (tileset) {
+      tileset.maximumScreenSpaceError = profile.screenSpaceError;
+      tileset.cacheBytes = profile.cacheMb * 1024 * 1024;
+      tileset.maximumCacheOverflowBytes = profile.overflowMb * 1024 * 1024;
+    }
+  }
+  if (mobile) applyMobileRendering();
+
+  // Une file réseau vide ne signifie pas que le raffinement de la vue est terminé.
+  scene.postRender.addEventListener(() => {
+    if (quality !== 'high' || !tileset) return;
+    const refining = !tileset.tilesLoaded;
+    const status = `${pendingTiles}:${refining}`;
+    if (status !== previousTileStatus) {
+      previousTileStatus = status;
+      onTilesLoading(pendingTiles, refining);
+    }
+  });
 
   scene.preRender.addEventListener(() => {
     Cartesian3.clone(scene.camera.directionWC, scene.light.direction);
@@ -129,6 +161,8 @@ export function createGlobe(container, { token, lowPower, onStatus, onTilesLoadi
 
   async function enableLow(reason = '') {
     quality = 'low';
+    previousTileStatus = '';
+    onTilesLoading(0);
     if (tileset) tileset.show = false;
     scene.globe.show = true;
     const source = await ensureLightImagery();
@@ -145,17 +179,19 @@ export function createGlobe(container, { token, lowPower, onStatus, onTilesLoadi
     onStatus({ state: 'loading', quality: 'high', message: 'Chargement des Google Photorealistic 3D Tiles…' });
     try {
       if (!tileset) {
+        const profile = MOBILE_RENDER_PROFILES[mobileRendering] ?? MOBILE_RENDER_PROFILES.balanced;
         tileset = await createGooglePhotorealistic3DTileset(
           { onlyUsingWithGoogleGeocoder: true },
           {
-            maximumScreenSpaceError: lowPower ? 32 : 16,
-            cacheBytes: (lowPower ? 256 : 512) * 1024 * 1024,
+            maximumScreenSpaceError: mobile ? profile.screenSpaceError : lowPower ? 32 : 16,
+            cacheBytes: (mobile ? profile.cacheMb : lowPower ? 256 : 512) * 1024 * 1024,
+            ...(mobile ? { maximumCacheOverflowBytes: profile.overflowMb * 1024 * 1024 } : {}),
             showCreditsOnScreen: true,
           },
         );
         scene.primitives.add(tileset);
         tileset.loadProgress.addEventListener((pending, processing) => {
-          if (quality === 'high') onTilesLoading(pending + processing);
+          pendingTiles = pending + processing;
         });
         tileset.tileFailed.addEventListener(({ message }) => {
           tilesetFailures += 1;
@@ -169,6 +205,8 @@ export function createGlobe(container, { token, lowPower, onStatus, onTilesLoadi
       tileset.show = true;
       scene.globe.show = false;
       quality = 'high';
+      previousTileStatus = '';
+      onTilesLoading(pendingTiles, true);
       updateGeocoder();
       onStatus({ state: 'ready', quality: 'high', message: 'Google Photorealistic 3D Tiles actives.' });
       return 'high';
@@ -220,6 +258,12 @@ export function createGlobe(container, { token, lowPower, onStatus, onTilesLoadi
       if (mode === 'high') return enableHigh();
       await enableLow();
       return 'low';
+    },
+
+    setMobileRendering(profile) {
+      if (!mobile || !Object.hasOwn(MOBILE_RENDER_PROFILES, profile)) return;
+      mobileRendering = profile;
+      applyMobileRendering();
     },
 
     /** Recherche de lieu via le géocodeur Cesium ion. */

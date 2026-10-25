@@ -30,6 +30,7 @@ const timeFormat = new Intl.DateTimeFormat('fr-FR', {
  */
 export function createControlsUI({
   store,
+  mobile = false,
   onManualRefresh,
   onChangePreference,
   onWorldView,
@@ -49,6 +50,11 @@ export function createControlsUI({
   const refreshBtn = document.querySelector('#btn-refresh-now');
   const demoToggleBtn = document.querySelector('#btn-quick-demo');
   const settingsBtn = document.querySelector('#btn-open-settings');
+  const mobileRenderingSelect = document.querySelector('#pref-mobile-rendering');
+  document.querySelector('#mobile-rendering-options').hidden = !mobile;
+  mobileRenderingSelect.addEventListener('change', () => {
+    onChangePreference({ mobileRendering: mobileRenderingSelect.value });
+  });
 
   // Bandeaux d'information / erreur
   const apiBanner = document.querySelector('#api-alert-banner');
@@ -306,6 +312,7 @@ export function createControlsUI({
   function renderSettings(state) {
     const { preferences, settingsOpen } = state;
     settingsModal.hidden = !settingsOpen;
+    mobileRenderingSelect.value = preferences.mobileRendering;
 
     for (const input of qualityInputs) {
       input.checked = input.value === preferences.quality;
@@ -334,11 +341,10 @@ export function createControlsUI({
     setCoordinates(lat, lon) {
       coordsDisplay.textContent = formatCoordinates(lat, lon);
     },
-    setTilesLoading(pendingCount) {
-      tilesLoadingBadge.hidden = pendingCount <= 0;
-      if (pendingCount > 0) {
-        tilesLoadingBadge.textContent = `Tuiles 3D (${pendingCount})…`;
-      }
+    setTilesLoading(pendingCount, refining = false) {
+      tilesLoadingBadge.hidden = pendingCount <= 0 && !refining;
+      tilesLoadingBadge.textContent = pendingCount > 0
+        ? `Tuiles 3D (${pendingCount})…` : 'Affinage 3D…';
     },
     setGeocoderEnabled(enabled) {
       placeInput.disabled = !enabled;

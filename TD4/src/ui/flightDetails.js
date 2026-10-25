@@ -21,6 +21,7 @@ import {
   formatVerticalRate,
   NOT_AVAILABLE,
 } from '../utils/flightUtils.js';
+import { MOBILE_LAYOUT_QUERY } from '../config/settings.js';
 
 /**
  * @param {HTMLElement} panel
@@ -54,6 +55,8 @@ export function createFlightDetailsUI(
   const resetViewBtn = panel.querySelector('#btn-reset-view-offset');
   const stopTrackingBtn = panel.querySelector('#btn-stop-tracking');
   const collapseBtn = panel.querySelector('#btn-collapse-details');
+  const compactAltitudeEl = panel.querySelector('#detail-compact-altitude');
+  const compactSpeedEl = panel.querySelector('#detail-compact-speed');
 
   const fields = {
     altitude: panel.querySelector('#detail-altitude'),
@@ -72,7 +75,17 @@ export function createFlightDetailsUI(
 
   const cameraButtons = Array.from(panel.querySelectorAll('[data-camera-mode]'));
 
-  let isCompactMobile = false;
+  const mobileLayout = window.matchMedia(MOBILE_LAYOUT_QUERY);
+  let isCompactMobile = true;
+  let isCollapsedDesktop = false;
+  let lastSelectedId = null;
+
+  function applyPanelState() {
+    const collapsed = mobileLayout.matches ? isCompactMobile : isCollapsedDesktop;
+    panel.classList.toggle('is-collapsed', collapsed);
+    collapseBtn.setAttribute('aria-expanded', String(!collapsed));
+    collapseBtn.textContent = collapsed ? 'Détails ▲' : 'Réduire ▼';
+  }
 
   for (const btn of cameraButtons) {
     btn.addEventListener('click', () => {
@@ -93,15 +106,27 @@ export function createFlightDetailsUI(
   });
 
   collapseBtn?.addEventListener('click', () => {
-    isCompactMobile = !isCompactMobile;
-    panel.classList.toggle('is-collapsed', isCompactMobile);
-    collapseBtn.setAttribute('aria-expanded', String(!isCompactMobile));
-    collapseBtn.textContent = isCompactMobile ? 'Détails ▲' : 'Réduire ▼';
+    if (mobileLayout.matches) isCompactMobile = !isCompactMobile;
+    else isCollapsedDesktop = !isCollapsedDesktop;
+    applyPanelState();
+    render();
   });
+
+  const onLayoutChange = () => {
+    applyPanelState();
+    render();
+  };
+  mobileLayout.addEventListener('change', onLayoutChange);
 
   function render() {
     const state = store.getState();
     const { selectedId, flights, cameraMode, preferences } = state;
+    if (selectedId !== lastSelectedId) {
+      isCompactMobile = true;
+      lastSelectedId = selectedId;
+      panel.scrollTop = 0;
+      applyPanelState();
+    }
 
     if (!selectedId || !flights.has(selectedId)) {
       panel.hidden = true;
@@ -117,7 +142,9 @@ export function createFlightDetailsUI(
     callsignEl.textContent = aircraft.callsign ?? `Sans indicatif (${aircraft.hex})`;
 
     const typeParts = [aircraft.description, aircraft.typeCode, categoryLabel(aircraft.category)].filter(Boolean);
-    subtitleEl.textContent = typeParts.length > 0 ? typeParts.join(' · ') : 'Type d’appareil non disponible';
+    subtitleEl.textContent = mobileLayout.matches && isCompactMobile
+      ? aircraft.typeCode || aircraft.description || categoryLabel(aircraft.category) || 'Type non disponible'
+      : typeParts.length > 0 ? typeParts.join(' · ') : 'Type d’appareil non disponible';
 
     const isDemo = aircraft.sourceType === 'demo' || state.dataStatus.source === 'demo';
     demoBadgeEl.hidden = !isDemo;
@@ -147,6 +174,8 @@ export function createFlightDetailsUI(
       ? 'Au sol'
       : formatAltitude(aircraft.altGeomFt, preferences.altitudeUnit, false);
     fields.speed.textContent = formatSpeed(aircraft.groundSpeedKt, preferences.speedUnit);
+    compactAltitudeEl.textContent = fields.altitude.textContent;
+    compactSpeedEl.textContent = fields.speed.textContent;
     fields.track.textContent = formatHeading(aircraft.trackDeg);
     fields.verticalRate.textContent = formatVerticalRate(aircraft.verticalRateFpm, preferences.altitudeUnit);
     fields.country.textContent = displayValue(aircraft.country);
@@ -168,6 +197,7 @@ export function createFlightDetailsUI(
   }, 1000);
 
   store.subscribe(render, ['selectedId', 'flights', 'cameraMode', 'preferences', 'dataStatus']);
+  applyPanelState();
   render();
 
   return {
@@ -184,6 +214,7 @@ export function createFlightDetailsUI(
     },
     destroy() {
       clearInterval(ageTimer);
+      mobileLayout.removeEventListener('change', onLayoutChange);
     },
   };
 }
