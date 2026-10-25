@@ -103,13 +103,18 @@ function localNorth(position, result) {
 
 /**
  * @param {import('cesium').Scene} scene
- * @param {{ lowPower?: boolean, onModelError?: (error: unknown) => void }} [options]
+ * @param {{ lowPower?: boolean, mobile?: boolean, onModelError?: (error: unknown) => void }} [options]
  */
-export function createAircraftLayer(scene, { lowPower = false, onModelError } = {}) {
+export function createAircraftLayer(scene, { lowPower = false, mobile = false, onModelError } = {}) {
   const images = {
     normal: createPlaneImage({}),
     selected: createPlaneImage({ fill: '#ffffff', glow: '#FFB020' }),
   };
+
+  const normalBaseSize = mobile ? 22 : 25;
+  const normalScaleByDistance = mobile
+    ? new NearFarScalar(1.2e5, 1.15, 3.2e6, 0.36)
+    : new NearFarScalar(1.5e5, 1.18, 6.0e6, 0.48);
 
   const billboards = scene.primitives.add(new BillboardCollection({ scene }));
   const labels = scene.primitives.add(new LabelCollection({ scene }));
@@ -137,7 +142,7 @@ export function createAircraftLayer(scene, { lowPower = false, onModelError } = 
       model = await Model.fromGltfAsync({
         url: SETTINGS.model.url,
         scale: SETTINGS.model.scale,
-        minimumPixelSize: SETTINGS.model.minimumPixelSize,
+        minimumPixelSize: mobile ? 64 : SETTINGS.model.minimumPixelSize,
         maximumScale: 20_000,
         silhouetteColor: SELECTED_COLOR,
         silhouetteSize: 1.5,
@@ -161,11 +166,11 @@ export function createAircraftLayer(scene, { lowPower = false, onModelError } = 
     const billboard = billboards.add({
       id: flight.id,
       image: images.normal,
-      width: 26,
-      height: 26,
+      width: normalBaseSize,
+      height: normalBaseSize,
       verticalOrigin: VerticalOrigin.CENTER,
       horizontalOrigin: HorizontalOrigin.CENTER,
-      scaleByDistance: new NearFarScalar(2.0e5, 1.2, 8.0e6, 0.55),
+      scaleByDistance: normalScaleByDistance,
       // Évite que les marqueurs soient masqués par le relief ou les bâtiments proches.
       disableDepthTestDistance: 150_000,
     });
@@ -189,6 +194,7 @@ export function createAircraftLayer(scene, { lowPower = false, onModelError } = 
       label,
       data: null,
       missing: false,
+      decluttered: false,
       from: null,
       blendStartMs: 0,
       display: null,
@@ -249,17 +255,83 @@ export function createAircraftLayer(scene, { lowPower = false, onModelError } = 
     return blended;
   }
 
+  /**
+   * Désencombrement visuel léger lorsque la caméra est éloignée :
+   * regroupe les avions très proches dans une grille angulaire dépendante du zoom
+   * pour éviter la superposition de centaines d'icônes, sans supprimer les vols de la liste.
+   */
+  function applyDeclutter() {
+    if (selectedId) {
+      for (const entry of entries.values()) {
+        entry.decluttered = entry.id !== selectedId;
+      }
+      return;
+    }
+
+    const cameraHeightM = scene.camera?.positionCartographic?.height ?? 0;
+    const minDeclutterHeightM = mobile ? 140_000 : 240_000;
+    if (cameraHeightM < minDeclutterHeightM) {
+      for (const entry of entries.values()) {
+        entry.decluttered = false;
+      }
+      return;
+    }
+
+    const viewportW = Math.max(320, scene.canvas?.clientWidth || 390);
+    const cellTargetPx = mobile ? 20 : 13;
+    const cellDeg = Math.min(
+      2.0,
+      Math.max(0.05, ((cameraHeightM / 111_320) * (cellTargetPx / viewportW)) * 0.9),
+    );
+
+    const occupiedCells = new Map();
+    for (const entry of entries.values()) {
+      const { data } = entry;
+      if (!data || (!showGround && data.onGround)) {
+        entry.decluttered = true;
+        continue;
+      }
+      const lat = entry.display?.lat ?? data.lat;
+      const lon = entry.display?.lon ?? data.lon;
+      const cosLat = Math.max(0.2, Math.cos(CesiumMath.toRadians(lat)));
+      const row = Math.floor((lat + 90) / cellDeg);
+      const col = Math.floor(((lon + 180) * cosLat) / cellDeg);
+      const cellKey = `${row}:${col}`;
+
+      const prev = occupiedCells.get(cellKey);
+      if (!prev) {
+        entry.decluttered = false;
+        occupiedCells.set(cellKey, entry);
+      } else {
+        const prevPriority = (prev.data.onGround ? 0 : 100_000) + (prev.data.altitudeFt ?? 0);
+        const currPriority = (data.onGround ? 0 : 100_000) + (data.altitudeFt ?? 0);
+        if (currPriority > prevPriority) {
+          prev.decluttered = true;
+          updateEntryVisual(prev);
+          entry.decluttered = false;
+          occupiedCells.set(cellKey, entry);
+        } else {
+          entry.decluttered = true;
+        }
+      }
+    }
+  }
+
   function updateEntryVisual(entry) {
     const { billboard, label, data } = entry;
+    if (!data) return;
     const isSelected = entry.id === selectedId;
     // Lorsqu'un avion est en cours de suivi, on masque les autres appareils sur le globe.
-    const visible = selectedId ? isSelected : (showGround || !data.onGround);
+    const visible = selectedId
+      ? isSelected
+      : !entry.decluttered && (showGround || !data.onGround);
     const useModel = isSelected && model && !modelFailed && model.ready;
 
     billboard.show = visible && !useModel && modelVisible;
     billboard.image = isSelected ? images.selected : images.normal;
-    billboard.width = isSelected ? 34 : 26;
-    billboard.height = isSelected ? 34 : 26;
+    billboard.width = isSelected ? 34 : normalBaseSize;
+    billboard.height = isSelected ? 34 : normalBaseSize;
+    billboard.scaleByDistance = isSelected ? undefined : normalScaleByDistance;
     billboard.color = isSelected ? SELECTED_COLOR : entry.color;
     billboard.color.alpha = entry.missing ? 0.45 : 1;
 
@@ -336,7 +408,7 @@ export function createAircraftLayer(scene, { lowPower = false, onModelError } = 
         if (!flights.has(entry.id)) removeEntry(entry);
       }
       // Limite du nombre de marqueurs (adaptée aux smartphones) : l'avion sélectionné est toujours gardé.
-      let budget = lowPower ? SETTINGS.flights.maxMarkersMobile : SETTINGS.flights.maxMarkers;
+      let budget = (mobile || lowPower) ? SETTINGS.flights.maxMarkersMobile : SETTINGS.flights.maxMarkers;
       for (const [id, flight] of flights) {
         if (budget <= 0 && id !== selectedId) {
           if (entries.has(id)) removeEntry(entries.get(id));
@@ -349,9 +421,18 @@ export function createAircraftLayer(scene, { lowPower = false, onModelError } = 
           entries.set(id, entry);
         }
         applyData(entry, flight.data, flight.missing, nowMs);
-        updateEntryVisual(entry);
         if (id === selectedId) updateSelectedTrack(entry, true);
       }
+      applyDeclutter();
+      entries.forEach(updateEntryVisual);
+      needsFullUpdate = true;
+    },
+
+    /** Recalcule le désencombrement visuel des marqueurs après un zoom ou déplacement caméra. */
+    onCameraChange() {
+      if (selectedId) return;
+      applyDeclutter();
+      entries.forEach(updateEntryVisual);
       needsFullUpdate = true;
     },
 
@@ -370,7 +451,7 @@ export function createAircraftLayer(scene, { lowPower = false, onModelError } = 
 
       // En vue globale, on espace le recalcul massif des marqueurs (200 ms PC / 450 ms mobile)
       // pour préserver le processeur et la batterie du téléphone.
-      const bulkIntervalMs = lowPower ? 450 : 200;
+      const bulkIntervalMs = (mobile || lowPower) ? 450 : 200;
       if (needsFullUpdate || nowMs - lastBulkUpdateMs >= bulkIntervalMs) {
         lastBulkUpdateMs = nowMs;
         needsFullUpdate = false;
@@ -390,6 +471,7 @@ export function createAircraftLayer(scene, { lowPower = false, onModelError } = 
       selectedId = id;
       needsFullUpdate = true;
       clearSelectedTrack();
+      applyDeclutter();
       entries.forEach(updateEntryVisual);
       const current = entries.get(id);
       if (current) {
@@ -414,6 +496,7 @@ export function createAircraftLayer(scene, { lowPower = false, onModelError } = 
     setShowGround(value) {
       showGround = value;
       needsFullUpdate = true;
+      applyDeclutter();
       entries.forEach(updateEntryVisual);
     },
 
@@ -426,6 +509,12 @@ export function createAircraftLayer(scene, { lowPower = false, onModelError } = 
 
     get modelAvailable() {
       return Boolean(model && model.ready && !modelFailed);
+    },
+
+    /** Rayon réel de la sphère englobante du modèle 3D (ou valeur de repli). */
+    get modelRadiusM() {
+      const radius = model && !modelFailed && model.ready ? model.boundingSphere?.radius : null;
+      return Number.isFinite(radius) && radius > 1 ? radius : SETTINGS.model.radiusM;
     },
 
     get count() {

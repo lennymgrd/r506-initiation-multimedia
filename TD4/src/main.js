@@ -9,11 +9,11 @@
  */
 import './style.css';
 import { Cartesian2, Cartesian3, ScreenSpaceEventHandler, ScreenSpaceEventType } from 'cesium';
-import { SETTINGS } from './config/settings.js';
+import { MOBILE_LAYOUT_QUERY, SETTINGS } from './config/settings.js';
 import { createDemoClient } from './data/demoFlights.js';
 import { createAircraftLayer, pickAircraftId } from './globe/aircraft.js';
 import { createCameraController } from './globe/camera.js';
-import { createGlobe, isLowPowerDevice, isWebGLAvailable } from './globe/globe.js';
+import { createGlobe, isLowPowerDevice, isMobileDevice, isWebGLAvailable } from './globe/globe.js';
 import { createAdsbClient } from './services/adsbApi.js';
 import { createInitialState, createStore, loadPreferences, savePreferences } from './state/appState.js';
 import { createControlsUI } from './ui/controls.js';
@@ -31,13 +31,14 @@ function bootstrap() {
   }
 
   const lowPower = isLowPowerDevice();
-  const initialPreferences = loadPreferences(undefined, { lowPower });
-  const isMobile = window.matchMedia('(max-width: 820px)').matches;
+  const mobile = isMobileDevice();
+  const initialPreferences = loadPreferences(undefined, { lowPower, mobile });
+  const isMobileLayout = window.matchMedia(MOBILE_LAYOUT_QUERY).matches;
 
   const store = createStore({
     ...createInitialState(initialPreferences),
     // Sur PC le panneau latéral est ouvert par défaut ; sur mobile il s'ouvre à la demande.
-    menuOpen: !isMobile,
+    menuOpen: !isMobileLayout,
   });
 
   // Clients de données : ADSB.fi en direct + mode démo local clairement séparé.
@@ -50,11 +51,13 @@ function bootstrap() {
     globe = createGlobe(globeContainer, {
       token: SETTINGS.cesium.ionToken,
       lowPower,
+      mobile,
+      mobileRendering: initialPreferences.mobileRendering,
       onStatus(globeStatus) {
         store.setState({ globeStatus: { ...store.getState().globeStatus, ...globeStatus } });
       },
-      onTilesLoading(pending) {
-        controlsUI?.setTilesLoading(pending);
+      onTilesLoading(pending, refining) {
+        controlsUI?.setTilesLoading(pending, refining);
       },
     });
   } catch (error) {
@@ -67,6 +70,7 @@ function bootstrap() {
 
   const aircraftLayer = createAircraftLayer(globe.scene, {
     lowPower,
+    mobile,
     onModelError() {
       controlsUI?.showBannerMessage(
         'Modèle 3D airplane.glb indisponible : utilisation du marqueur vectoriel orienté.',
@@ -77,6 +81,7 @@ function bootstrap() {
   let detailsUI = null;
   const cameraController = createCameraController(globe.viewer, {
     aircraftLayer,
+    mobile,
     onOrientationStatus(status) {
       detailsUI?.setOrientationStatus(status);
     },
@@ -86,6 +91,7 @@ function bootstrap() {
 
   const controlsUI = createControlsUI({
     store,
+    mobile,
     onManualRefresh() {
       fetchAreaFlights({ force: true });
     },
@@ -143,6 +149,9 @@ function bootstrap() {
     onResetCameraOffset() {
       cameraController.resetViewOffset();
     },
+    onZoomChase(factor) {
+      cameraController.zoomChase(factor);
+    },
     onToggleOrientationSensor() {
       cameraController.toggleDeviceOrientation();
     },
@@ -162,7 +171,7 @@ function bootstrap() {
     aircraftLayer.update(Date.now());
 
     // Sur mobile, lorsqu'on choisit un vol dans la liste, on referme le tiroir pour voir le globe.
-    const closeDrawer = fromList && window.matchMedia('(max-width: 820px)').matches;
+    const closeDrawer = fromList && window.matchMedia(MOBILE_LAYOUT_QUERY).matches;
     const nextCameraMode = state.selectedId === id ? state.cameraMode : 'chase';
 
     store.setState({
@@ -199,7 +208,7 @@ function bootstrap() {
   }, ScreenSpaceEventType.LEFT_CLICK);
 
   let lastCoordUpdateMs = 0;
-  if (!lowPower) {
+  if (!mobile && !lowPower) {
     inputHandler.setInputAction((movement) => {
       const now = performance.now();
       if (now - lastCoordUpdateMs < 90) return;
@@ -387,6 +396,7 @@ function bootstrap() {
   globe.viewer.camera.moveEnd.addEventListener(() => {
     const state = store.getState();
     if (state.cameraMode !== 'global') return;
+    aircraftLayer.onCameraChange();
     clearTimeout(cameraSettleTimer);
 
     const nextArea = computeCurrentArea();
@@ -436,6 +446,9 @@ function bootstrap() {
     if (patch.quality !== undefined && patch.quality !== prev.quality) {
       await globe.setQuality(next.quality);
       controlsUI.setGeocoderEnabled(globe.canSearchPlaces);
+    }
+    if (patch.mobileRendering !== undefined && patch.mobileRendering !== prev.mobileRendering) {
+      globe.setMobileRendering(next.mobileRendering);
     }
     if (patch.demoMode !== undefined && patch.demoMode !== prev.demoMode) {
       stopTrackingAndReturnGlobal();

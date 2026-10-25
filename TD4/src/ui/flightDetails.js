@@ -39,6 +39,7 @@ export function createFlightDetailsUI(
     store,
     onSelectCameraMode,
     onResetCameraOffset,
+    onZoomChase,
     onToggleOrientationSensor,
     onStopTracking,
   },
@@ -57,6 +58,9 @@ export function createFlightDetailsUI(
   const collapseBtn = panel.querySelector('#btn-collapse-details');
   const compactAltitudeEl = panel.querySelector('#detail-compact-altitude');
   const compactSpeedEl = panel.querySelector('#detail-compact-speed');
+  const chaseZoomGroup = panel.querySelector('#chase-zoom-controls');
+  const zoomInBtn = panel.querySelector('#btn-chase-zoom-in');
+  const zoomOutBtn = panel.querySelector('#btn-chase-zoom-out');
 
   const fields = {
     altitude: panel.querySelector('#detail-altitude'),
@@ -80,11 +84,23 @@ export function createFlightDetailsUI(
   let isCollapsedDesktop = false;
   let lastSelectedId = null;
 
+  function syncCreditsLift() {
+    const stage = panel.parentElement;
+    if (!stage) return;
+    if (panel.hidden || !mobileLayout.matches) {
+      stage.style.setProperty('--details-lift', '0px');
+      return;
+    }
+    const isLandscape = window.matchMedia('(max-height: 520px) and (orientation: landscape)').matches;
+    stage.style.setProperty('--details-lift', isLandscape ? '0px' : `${panel.offsetHeight + 8}px`);
+  }
+
   function applyPanelState() {
     const collapsed = mobileLayout.matches ? isCompactMobile : isCollapsedDesktop;
     panel.classList.toggle('is-collapsed', collapsed);
     collapseBtn.setAttribute('aria-expanded', String(!collapsed));
     collapseBtn.textContent = collapsed ? 'Détails ▲' : 'Réduire ▼';
+    requestAnimationFrame(syncCreditsLift);
   }
 
   for (const btn of cameraButtons) {
@@ -92,6 +108,14 @@ export function createFlightDetailsUI(
       onSelectCameraMode(btn.dataset.cameraMode);
     });
   }
+
+  zoomInBtn?.addEventListener('click', () => {
+    onZoomChase?.(0.8);
+  });
+
+  zoomOutBtn?.addEventListener('click', () => {
+    onZoomChase?.(1.25);
+  });
 
   resetViewBtn?.addEventListener('click', () => {
     onResetCameraOffset();
@@ -130,9 +154,11 @@ export function createFlightDetailsUI(
 
     if (!selectedId || !flights.has(selectedId)) {
       panel.hidden = true;
+      syncCreditsLift();
       return;
     }
 
+    const wasHidden = panel.hidden;
     panel.hidden = false;
     const entry = flights.get(selectedId);
     const aircraft = entry.data;
@@ -161,6 +187,14 @@ export function createFlightDetailsUI(
       const active = btn.dataset.cameraMode === cameraMode;
       btn.classList.toggle('is-active', active);
       btn.setAttribute('aria-pressed', String(active));
+    }
+
+    if (chaseZoomGroup) {
+      chaseZoomGroup.hidden = cameraMode !== 'chase';
+    }
+
+    if (wasHidden) {
+      requestAnimationFrame(syncCreditsLift);
     }
 
     // Bandeau explicite pour la vue cockpit virtuelle simulée.

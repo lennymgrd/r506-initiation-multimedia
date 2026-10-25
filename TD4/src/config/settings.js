@@ -15,9 +15,9 @@ function env(name, fallback = '') {
 export const MOBILE_LAYOUT_QUERY = '(max-width: 820px), (max-width: 1024px) and (max-height: 520px) and (pointer: coarse)';
 
 export const MOBILE_RENDER_PROFILES = {
-  economy: { pixelRatio: 1, screenSpaceError: 28, cacheMb: 128, overflowMb: 32 },
-  balanced: { pixelRatio: 1.5, screenSpaceError: 22, cacheMb: 256, overflowMb: 64 },
-  high: { pixelRatio: 2, screenSpaceError: 20, cacheMb: 256, overflowMb: 64 },
+  economy: { pixelRatio: 1, screenSpaceError: 26, cacheMb: 128, overflowMb: 32, fxaa: false },
+  balanced: { pixelRatio: 1.5, screenSpaceError: 20, cacheMb: 256, overflowMb: 64, fxaa: true },
+  high: { pixelRatio: 2, screenSpaceError: 16, cacheMb: 256, overflowMb: 64, fxaa: true },
 };
 
 export const SETTINGS = {
@@ -83,9 +83,9 @@ export const SETTINGS = {
     worldView: { lon: 2.35, lat: 30, height: 18_000_000 },
     initialView: { lon: 2.35, lat: 46.6, height: 2_200_000 },
     selectFlyHeightM: 25_000,
-    chase: { rangeM: 140, pitchDeg: -12, minRangeM: 40, maxRangeM: 3000 },
+    chase: { rangeM: 140, mobileRangeM: 68, pitchDeg: -12, mobilePitchDeg: -15, minRangeM: 32, maxRangeM: 3000 },
     /** Part du petit côté occupée par le modèle en suivi mobile. */
-    mobileModelFraction: 0.6,
+    mobileModelFraction: 0.62,
     cockpit: { forwardOffsetM: 18, upOffsetM: 2.5 },
     /** Lissage de la caméra (0 = immobile, 1 = aucune inertie). */
     smoothing: 0.18,

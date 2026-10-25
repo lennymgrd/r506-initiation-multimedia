@@ -76,9 +76,12 @@ export function createGlobe(container, { token, lowPower, mobile = false, mobile
   });
 
   const { scene } = viewer;
+  // Cesium applique par défaut `image-rendering: pixelated` sur le canevas WebGL,
+  // ce qui provoque un fort crénelage sur iPhone lorsque resolutionScale < devicePixelRatio.
+  scene.canvas.style.imageRendering = 'auto';
   scene.globe.baseColor = Color.fromCssColorString('#0b1a2e');
   scene.globe.showGroundAtmosphere = !lowPower;
-  scene.globe.maximumScreenSpaceError = lowPower ? 3 : 2;
+  scene.globe.maximumScreenSpaceError = lowPower ? 2.5 : 1.8;
   scene.fog.enabled = true;
   scene.highDynamicRange = false;
   if (scene.postProcessStages?.fxaa) {
@@ -88,7 +91,9 @@ export function createGlobe(container, { token, lowPower, mobile = false, mobile
   scene.light = new DirectionalLight({ direction: Cartesian3.clone(scene.camera.directionWC) });
   if (mobile || lowPower) {
     viewer.targetFrameRate = 30;
-    if (!mobile) viewer.resolutionScale = Math.min(1, 1.35 / (window.devicePixelRatio || 1));
+  }
+  if (!mobile) {
+    viewer.resolutionScale = lowPower ? 1.0 : Math.min(window.devicePixelRatio || 1, 2.0);
   }
 
   const onWindowResize = () => {
@@ -110,6 +115,9 @@ export function createGlobe(container, { token, lowPower, mobile = false, mobile
     // Cesium 1.146 : avec useBrowserRecommendedResolution=true, la densité vaut
     // exactement resolutionScale. Ne pas diviser une seconde fois par le DPR.
     viewer.resolutionScale = Math.min(window.devicePixelRatio || 1, profile.pixelRatio);
+    if (scene.postProcessStages?.fxaa) {
+      scene.postProcessStages.fxaa.enabled = Boolean(profile.fxaa) && !lowPower;
+    }
     if (tileset) {
       tileset.maximumScreenSpaceError = profile.screenSpaceError;
       tileset.cacheBytes = profile.cacheMb * 1024 * 1024;

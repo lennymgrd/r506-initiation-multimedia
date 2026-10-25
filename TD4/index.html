@@ -325,10 +325,37 @@
               </button>
             </div>
 
-            <dl class="compact-telemetry">
-              <div><dt>Altitude</dt><dd id="detail-compact-altitude">—</dd></div>
-              <div><dt>Vitesse</dt><dd id="detail-compact-speed">—</dd></div>
-            </dl>
+            <div class="compact-summary-row">
+              <dl class="compact-telemetry">
+                <div><dt>Alt.</dt><dd id="detail-compact-altitude">—</dd></div>
+                <div><dt>Vit.</dt><dd id="detail-compact-speed">—</dd></div>
+              </dl>
+              <div
+                id="chase-zoom-controls"
+                class="chase-zoom-group"
+                role="group"
+                aria-label="Distance de la caméra extérieure"
+              >
+                <button
+                  id="btn-chase-zoom-in"
+                  type="button"
+                  class="zoom-step-btn"
+                  aria-label="Rapprocher la caméra de l'avion"
+                  title="Rapprocher la caméra (+)"
+                >
+                  +
+                </button>
+                <button
+                  id="btn-chase-zoom-out"
+                  type="button"
+                  class="zoom-step-btn"
+                  aria-label="Éloigner la caméra de l'avion"
+                  title="Éloigner la caméra (−)"
+                >
+                  −
+                </button>
+              </div>
+            </div>
 
             <!-- Message si l'avion sélectionné a disparu temporairement -->
             <div id="detail-missing-banner" class="missing-banner" hidden>

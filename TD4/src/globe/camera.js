@@ -17,7 +17,7 @@ import {
   Matrix4,
   Transforms,
 } from 'cesium';
-import { SETTINGS } from '../config/settings.js';
+import { MOBILE_LAYOUT_QUERY, SETTINGS } from '../config/settings.js';
 import { destinationPoint, interpolateHeading, interpolatePositions } from '../utils/flightUtils.js';
 
 const scratchTransform = new Matrix4();
@@ -27,12 +27,14 @@ const scratchOffset = new HeadingPitchRange();
  * @param {import('cesium').Viewer} viewer
  * @param {{
  *   aircraftLayer: ReturnType<import('./aircraft.js').createAircraftLayer>,
+ *   mobile?: boolean,
  *   onOrientationStatus?: (status: { active: boolean, message: string }) => void
  * }} options
  */
-export function createCameraController(viewer, { aircraftLayer, onOrientationStatus } = {}) {
+export function createCameraController(viewer, { aircraftLayer, mobile = false, onOrientationStatus } = {}) {
   const { camera, scene } = viewer;
   const controller = scene.screenSpaceCameraController;
+  const mobileMedia = typeof window !== 'undefined' ? window.matchMedia?.(MOBILE_LAYOUT_QUERY) : null;
 
   let mode = 'global';
   let trackedId = null;
@@ -40,10 +42,52 @@ export function createCameraController(viewer, { aircraftLayer, onOrientationSta
   // État lissé de l'avion suivi (évite les tremblements de caméra).
   let smoothed = null;
 
+  function isMobileView() {
+    return Boolean(mobile || mobileMedia?.matches);
+  }
+
+  function computeMinChaseRangeM() {
+    const modelRadius = aircraftLayer?.modelRadiusM ?? SETTINGS.model.radiusM;
+    return Math.max(SETTINGS.camera.chase.minRangeM, Math.round(modelRadius * 1.55));
+  }
+
+  /**
+   * Calcule la distance initiale de la caméra extérieure :
+   * - sur PC : conserve exactement le réglage de référence (140 m) ;
+   * - sur smartphone : adapte la distance à la taille réelle du modèle 3D et au champ de vision
+   *   pour que l'avion soit bien visible au-dessus du panneau inférieur compact.
+   */
+  function computeDefaultChaseRangeM() {
+    if (!isMobileView()) {
+      return SETTINGS.camera.chase.rangeM;
+    }
+    const modelRadius = aircraftLayer?.modelRadiusM ?? SETTINGS.model.radiusM;
+    const fov = camera.frustum?.fov ?? CesiumMath.toRadians(60);
+    const halfFovTan = Math.max(0.35, Math.tan(fov * 0.5));
+    const canvas = scene.canvas;
+    const isPortrait = canvas && canvas.clientHeight > canvas.clientWidth;
+    const distanceFactor = isPortrait ? 1.85 : 2.1;
+    const ideal = (modelRadius * distanceFactor) / halfFovTan;
+    return Math.max(computeMinChaseRangeM(), Math.min(92, Math.round(ideal)));
+  }
+
+  function computeDefaultChasePitchDeg() {
+    return isMobileView()
+      ? (SETTINGS.camera.chase.mobilePitchDeg ?? -15)
+      : SETTINGS.camera.chase.pitchDeg;
+  }
+
+  function clampChaseRange(rangeM) {
+    return Math.max(
+      computeMinChaseRangeM(),
+      Math.min(SETTINGS.camera.chase.maxRangeM, rangeM),
+    );
+  }
+
   // Décalages contrôlés par l'utilisateur en vue extérieure (chase) ou cockpit.
   let chaseYawDeg = 0;
-  let chasePitchDeg = SETTINGS.camera.chase.pitchDeg;
-  let chaseRangeM = SETTINGS.camera.chase.rangeM;
+  let chasePitchDeg = computeDefaultChasePitchDeg();
+  let chaseRangeM = computeDefaultChaseRangeM();
 
   let cockpitYawDeg = 0;
   let cockpitPitchDeg = -3;
@@ -54,22 +98,48 @@ export function createCameraController(viewer, { aircraftLayer, onOrientationSta
   let orientationReference = null;
   let orientationListener = null;
 
-  // Gestion du glisser-déposer (souris / tactile) pour tourner le regard.
-  let pointerDown = false;
+  // Gestion multi-pointeurs : 1 doigt/souris = rotation du regard, 2 doigts = pincer pour zoomer.
+  const activePointers = new Map();
   let lastPointerX = 0;
   let lastPointerY = 0;
+  let lastPinchDistance = 0;
 
   const canvas = scene.canvas;
 
+  function getPinchDistance() {
+    const pts = [...activePointers.values()];
+    if (pts.length < 2) return 0;
+    return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+  }
+
   function onPointerDown(event) {
     if (mode === 'global') return;
-    pointerDown = true;
-    lastPointerX = event.clientX;
-    lastPointerY = event.clientY;
+    activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (activePointers.size === 1) {
+      lastPointerX = event.clientX;
+      lastPointerY = event.clientY;
+    } else if (activePointers.size === 2) {
+      lastPinchDistance = getPinchDistance();
+    }
   }
 
   function onPointerMove(event) {
-    if (!pointerDown || mode === 'global') return;
+    if (!activePointers.has(event.pointerId) || mode === 'global') return;
+    activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    // Pincement à deux doigts : rapproche ou éloigne la caméra en vue extérieure.
+    if (activePointers.size >= 2) {
+      if (mode === 'chase') {
+        const dist = getPinchDistance();
+        if (lastPinchDistance > 8 && dist > 8) {
+          const factor = lastPinchDistance / dist;
+          chaseRangeM = clampChaseRange(chaseRangeM * factor);
+        }
+        lastPinchDistance = dist;
+      }
+      return;
+    }
+
     const dx = event.clientX - lastPointerX;
     const dy = event.clientY - lastPointerY;
     lastPointerX = event.clientX;
@@ -77,30 +147,34 @@ export function createCameraController(viewer, { aircraftLayer, onOrientationSta
 
     if (mode === 'chase') {
       chaseYawDeg = ((chaseYawDeg + dx * 0.35) % 360 + 360) % 360;
-      chasePitchDeg = Math.max(-75, Math.min(15, chasePitchDeg - dy * 0.25));
+      chasePitchDeg = Math.max(-75, Math.min(12, chasePitchDeg - dy * 0.25));
     } else if (mode === 'cockpit') {
       cockpitYawDeg = Math.max(-140, Math.min(140, cockpitYawDeg + dx * 0.28));
       cockpitPitchDeg = Math.max(-65, Math.min(45, cockpitPitchDeg - dy * 0.22));
     }
   }
 
-  function onPointerUp() {
-    pointerDown = false;
+  function onPointerUp(event) {
+    activePointers.delete(event.pointerId);
+    lastPinchDistance = 0;
+    if (activePointers.size === 1) {
+      const remaining = activePointers.values().next().value;
+      lastPointerX = remaining.x;
+      lastPointerY = remaining.y;
+    }
   }
 
   function onWheel(event) {
     if (mode !== 'chase') return;
     event.preventDefault();
     const factor = event.deltaY > 0 ? 1.12 : 0.89;
-    chaseRangeM = Math.max(
-      SETTINGS.camera.chase.minRangeM,
-      Math.min(SETTINGS.camera.chase.maxRangeM, chaseRangeM * factor),
-    );
+    chaseRangeM = clampChaseRange(chaseRangeM * factor);
   }
 
   canvas.addEventListener('pointerdown', onPointerDown);
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup', onPointerUp);
+  window.addEventListener('pointercancel', onPointerUp);
   canvas.addEventListener('wheel', onWheel, { passive: false });
 
   /** Libère tout verrouillage de caméra et rend la main aux contrôles Cesium. */
@@ -287,8 +361,8 @@ export function createCameraController(viewer, { aircraftLayer, onOrientationSta
       if (targetChanged) {
         smoothed = null;
         chaseYawDeg = 0;
-        chasePitchDeg = SETTINGS.camera.chase.pitchDeg;
-        chaseRangeM = SETTINGS.camera.chase.rangeM;
+        chasePitchDeg = computeDefaultChasePitchDeg();
+        chaseRangeM = computeDefaultChaseRangeM();
         cockpitYawDeg = 0;
         cockpitPitchDeg = -3;
         cockpitRollDeg = 0;
@@ -324,14 +398,20 @@ export function createCameraController(viewer, { aircraftLayer, onOrientationSta
     /** Réinitialise l'angle d'observation dans la vue courante (extérieure ou cockpit). */
     resetViewOffset() {
       chaseYawDeg = 0;
-      chasePitchDeg = SETTINGS.camera.chase.pitchDeg;
-      chaseRangeM = SETTINGS.camera.chase.rangeM;
+      chasePitchDeg = computeDefaultChasePitchDeg();
+      chaseRangeM = computeDefaultChaseRangeM();
       cockpitYawDeg = 0;
       cockpitPitchDeg = -3;
       orientationReference = null;
       if (trackedId && mode === 'global') {
         flyToAircraftOverview(trackedId);
       }
+    },
+
+    /** Rapproche (< 1) ou éloigne (> 1) la caméra en vue extérieure sans réinitialiser l'angle. */
+    zoomChase(factor) {
+      if (mode !== 'chase') return;
+      chaseRangeM = clampChaseRange(chaseRangeM * factor);
     },
 
     /** Active ou désactive le suivi d'orientation du smartphone en vue cockpit. */
@@ -356,11 +436,18 @@ export function createCameraController(viewer, { aircraftLayer, onOrientationSta
       const groundSafeAltM = state.altitudeM < 5 ? 8 : state.altitudeM;
 
       if (mode === 'chase') {
-        const center = Cartesian3.fromDegrees(state.lon, state.lat, groundSafeAltM);
+        const isMobilePortrait = isMobileView() && canvas.clientHeight > canvas.clientWidth;
+        // Sur smartphone en portrait, on abaisse légèrement le point visé pour que l'avion
+        // apparaisse bien dégagé au-dessus du panneau inférieur compact.
+        const verticalBiasM = isMobilePortrait ? Math.min(10, chaseRangeM * 0.08) : 0;
+        const targetAltM = Math.max(8, groundSafeAltM - verticalBiasM);
+        const safePitchDeg = state.altitudeM < 60 ? Math.min(chasePitchDeg, -4) : chasePitchDeg;
+
+        const center = Cartesian3.fromDegrees(state.lon, state.lat, targetAltM);
         Transforms.eastNorthUpToFixedFrame(center, Ellipsoid.WGS84, scratchTransform);
         scratchOffset.heading = CesiumMath.toRadians(state.headingDeg + chaseYawDeg);
-        scratchOffset.pitch = CesiumMath.toRadians(chasePitchDeg);
-        scratchOffset.range = chaseRangeM;
+        scratchOffset.pitch = CesiumMath.toRadians(safePitchDeg);
+        scratchOffset.range = clampChaseRange(chaseRangeM);
         camera.lookAtTransform(scratchTransform, scratchOffset);
       } else if (mode === 'cockpit') {
         const nosePoint = destinationPoint(
@@ -388,9 +475,11 @@ export function createCameraController(viewer, { aircraftLayer, onOrientationSta
     destroy() {
       disableDeviceOrientation(true);
       releaseCameraLock();
+      activePointers.clear();
       canvas.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
       canvas.removeEventListener('wheel', onWheel);
     },
   };
