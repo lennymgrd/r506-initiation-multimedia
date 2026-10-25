@@ -1,19 +1,20 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 
 /**
  * Configuration Vite.
  *
- * - `base` : chemin de publication. Sur GitHub Pages, un dépôt "flight-explorer-3d"
- *   est servi depuis https://UTILISATEUR.github.io/flight-explorer-3d/.
+ * - `base` : chemin de publication, "/" par défaut pour Vercel.
+ *   BASE_PATH peut être défini dans .env ou dans l'environnement de compilation.
  *   Le workflow GitHub Actions fournit automatiquement BASE_PATH=/<nom-du-dépôt>/.
  * - `CESIUM_BASE_URL` : dossier où Cesium trouve ses Workers, Assets, Widgets…
  *   (copiés dans public/cesium/ par scripts/copy-cesium-assets.mjs).
  * - `server.proxy` : proxy de DÉVELOPPEMENT uniquement. L'API ADSB.fi ne renvoie
  *   pas d'en-tête CORS ; le serveur Vite local relaie donc /adsb-api/* vers
- *   https://opendata.adsb.fi/api/*. Ce proxy n'existe pas en production.
+ *   https://opendata.adsb.fi/api/*. Sur Vercel, vercel.json assure ce relais.
  */
-export default defineConfig(({ command }) => {
-  const base = command === 'build' ? process.env.BASE_PATH || '/flight-explorer-3d/' : '/';
+export default defineConfig(({ command, mode }) => {
+  const { BASE_PATH } = loadEnv(mode, process.cwd(), 'BASE_PATH');
+  const base = command === 'build' ? BASE_PATH || '/' : '/';
 
   return {
     base,

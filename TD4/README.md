@@ -187,3 +187,33 @@ Le dépôt contient le workflow GitHub Actions [`.github/workflows/deploy.yml`](
    - *(Optionnel)* Ajoutez la variable `VITE_ADSB_API_BASE` pointant vers votre Worker Cloudflare si vous souhaitez activer les appels directs ADSB.fi sur GitHub Pages.
 3. Poussez sur la branche `main` (ou déclenchez le workflow manuellement depuis l’onglet **Actions**).
 
+---
+
+## 8. Déploiement Vercel
+
+Dans Vercel, avec l'offre **Hobby gratuite**, choisissez **Add New → Project**, importez le dépôt GitHub `lennymgrd/r506-initiation-multimedia` et configurez :
+
+| Paramètre | Valeur |
+| :--- | :--- |
+| Root Directory | `TD4` |
+| Framework Preset | `Vite` |
+| Build Command | `npm run build` |
+| Output Directory | `dist` |
+| Install Command | `npm ci` |
+| Node.js Version | `24.x` (les dépendances actuelles nécessitent au moins Node 22.12) |
+| Production Branch | `main` |
+
+Ajoutez ces variables dans **Environment Variables**, pour **Production** et **Preview**, puis renseignez votre propre token Cesium ion :
+
+```env
+BASE_PATH=/
+VITE_ADSB_API_BASE=/adsb-api
+VITE_CESIUM_ION_TOKEN=
+```
+
+Le token Cesium est visible dans le navigateur : utilisez un token dédié, limité aux permissions nécessaires (`assets:read`, `geocode`), avec les **Allowed URLs** restreintes à votre domaine Vercel et aux domaines de prévisualisation utilisés. Le fichier `.env` local est ignoré par Git ; ne le publiez pas.
+
+Cliquez sur **Deploy**. Les prochains pushes GitHub sur `main` déclencheront automatiquement un nouveau déploiement. Après une modification des variables, relancez un **Redeploy**, car Vite les intègre à la compilation.
+
+Le fichier `vercel.json` utilise une [réécriture externe Vercel](https://vercel.com/docs/routing/rewrites#rewrites-to-external-origins) pour relayer `/adsb-api/*` vers `https://opendata.adsb.fi/api/*`, sans serveur ni fonction supplémentaire. Les routes `/v3/lat/{lat}/lon/{lon}/dist/{dist}`, `/v2/callsign/{callsign}` et `/v2/hex/{hex}` sont conservées. Ce relais ne supprime ni les conditions d'utilisation d'ADSB.fi ni sa limite de débit ; la file d'attente et la gestion des erreurs 429 restent actives.
+

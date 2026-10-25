@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/adsb-api/:path*",
+      "destination": "https://opendata.adsb.fi/api/:path*"
+    }
+  ]
+}
